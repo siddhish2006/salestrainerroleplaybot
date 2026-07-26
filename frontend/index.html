@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Roleplay Bot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    /* Outer wrapper — matches the sketch border */
+    .wrapper {
+      display: flex;
+      width: 100%;
+      max-width: 860px;
+      height: 540px;
+      border: 1px solid #2a2a2a;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    /* ── LEFT PANEL ── */
+    .left {
+      width: 380px;
+      flex-shrink: 0;
+      border-right: 1px solid #2a2a2a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      padding: 2rem;
+      background: #0d0d0d;
+    }
+
+    /* Orb wrapper — idle shows mic icon, active shows orb animation */
+    .orb-area {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      cursor: pointer;
+    }
+
+    /* Idle: mic circle */
+    .mic-circle {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      border: 1.5px solid #333;
+      background: #161616;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .mic-circle:hover { border-color: #555; background: #1c1c1c; }
+    .mic-circle svg { width: 52px; height: 52px; color: #aaa; }
+
+    /* Active: orb */
+    .orb-container {
+      display: none;
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      overflow: hidden;
+      rotate: 90deg;
+      filter: drop-shadow(0 0 10px #ff3e1c99) drop-shadow(0 0 10px #1c8cff99);
+      transition: filter 0.3s;
+    }
+    .orb-container:hover {
+      filter: drop-shadow(0 0 18px #ff3e1ccc) drop-shadow(0 0 18px #1c8cffcc);
+    }
+    .orb {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: #080808;
+      filter: blur(18px);
+    }
+    .orb-inner {
+      position: absolute;
+      left: -120%; top: -25%;
+      width: 160%; aspect-ratio: 1;
+      border-radius: 50%;
+      background: #ff3e1c;
+      clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+      animation: orb-spin 6s linear infinite;
+    }
+    .orb-inner:nth-child(2) {
+      left: auto; right: -120%;
+      top: auto;  bottom: -25%;
+      background: #1c8cff;
+      animation-duration: 8s;
+      clip-path: polygon(20% 0%,0% 20%,30% 50%,0% 80%,20% 100%,50% 70%,80% 100%,100% 80%,70% 50%,100% 20%,80% 0%,50% 30%);
+    }
+    @keyframes orb-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Agent name pill */
+    .agent-pill {
+      padding: 0.45rem 1.4rem;
+      border: 1px solid #333;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      color: #ccc;
+      background: #111;
+      text-align: center;
+      min-width: 160px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 280px;
+    }
+
+    /* Persona select */
+    select {
+      width: 100%;
+      max-width: 280px;
+      padding: 0.55rem 0.85rem;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #bbb;
+      font-size: 0.85rem;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      padding-right: 2rem;
+    }
+    select:focus { outline: none; border-color: #444; }
+
+    /* Status text */
+    #status {
+      font-size: 0.78rem;
+      color: #444;
+      text-align: center;
+      min-height: 1em;
+    }
+    #status.active { color: #22c55e; }
+    #status.error  { color: #ef4444; }
+
+    /* ── RIGHT PANEL ── */
+    .right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #0a0a0a;
+      overflow: hidden;
+    }
+
+    #transcript {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    #transcript:empty::after {
+      content: 'Transcript';
+      position: absolute;
+      bottom: 1.5rem;
+      right: 1.75rem;
+      color: #2a2a2a;
+      font-size: 0.9rem;
+    }
+    .right { position: relative; }
+
+    .turn { display: flex; flex-direction: column; gap: 0.2rem; max-width: 88%; }
+    .turn.user  { align-self: flex-end;   align-items: flex-end; }
+    .turn.agent { align-self: flex-start; align-items: flex-start; }
+    .turn-label { font-size: 0.7rem; color: #3a3a3a; text-transform: uppercase; letter-spacing: 0.05em; }
+    .turn-text  { padding: 0.5rem 0.8rem; border-radius: 10px; font-size: 0.9rem; line-height: 1.5; }
+    .turn.user  .turn-text { background: #1a2a40; color: #9ec8ff; }
+    .turn.agent .turn-text { background: #141f14; color: #8ecf8e; }
+    .turn-text.interim { opacity: 0.45; font-style: italic; }
+
+    #evaluation {
+      display: none;
+      max-height: 58%;
+      overflow-y: auto;
+      border-top: 1px solid #2a2a2a;
+      padding: 1.1rem 1.5rem 1.4rem;
+      color: #d4d4d4;
+    }
+    #evaluation:not([hidden]) { display: block; }
+    .evaluation-title { font-size: 0.9rem; letter-spacing: 0.07em; text-transform: uppercase; color: #f0b35f; }
+    .evaluation-score { margin: 0.55rem 0 0.9rem; font-size: 1.6rem; color: #f4f4f5; }
+    .evaluation-score span { color: #71717a; font-size: 0.85rem; }
+    .evaluation-meta { color: #a1a1aa; font-size: 0.78rem; line-height: 1.5; margin-bottom: 0.85rem; }
+    .evaluation-section { margin-top: 0.9rem; }
+    .evaluation-section h3 { font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: #888; margin-bottom: 0.35rem; }
+    .evaluation-section p, .evaluation-section li { font-size: 0.82rem; line-height: 1.55; }
+    .evaluation-section ul { padding-left: 1.1rem; display: grid; gap: 0.25rem; }
+    .score-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem 0.75rem; }
+    .score-grid div { font-size: 0.78rem; color: #b4b4b4; display: flex; justify-content: space-between; gap: 0.5rem; }
+    .score-grid strong { color: #f4f4f5; }
+    .evaluation-quote { color: #c7d9ff; font-style: italic; }
+    .evaluation-error { color: #f87171; font-size: 0.84rem; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- LEFT -->
+  <div class="left">
+    <div class="orb-area" id="orbArea" title="Click to start / stop call">
+      <!-- Idle mic -->
+      <div class="mic-circle" id="micCircle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="12" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="8"  y1="22" x2="16" y2="22"/>
+        </svg>
+      </div>
+      <!-- Active orb -->
+      <div class="orb-container" id="orbContainer">
+        <div class="orb">
+          <div class="orb-inner"></div>
+          <div class="orb-inner"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="agent-pill" id="agentPill">Agent</div>
+
+    <select id="personaPicker">
+      <option disabled selected>Loading personas…</option>
+    </select>
+
+    <select id="providerPicker">
+      <option disabled selected>Loading providers…</option>
+    </select>
+
+    <div id="status">Click orb to start</div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div id="transcript"></div>
+    <section id="evaluation" hidden aria-live="polite"></section>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<script>
+  const { Room, RoomEvent, Track } = LivekitClient;
+
+  const orbArea        = document.getElementById('orbArea');
+  const micCircle      = document.getElementById('micCircle');
+  const orbContainer   = document.getElementById('orbContainer');
+  const agentPill      = document.getElementById('agentPill');
+  const picker         = document.getElementById('personaPicker');
+  const providerPicker = document.getElementById('providerPicker');
+  const statusEl       = document.getElementById('status');
+  const transcriptEl   = document.getElementById('transcript');
+  const evaluationEl   = document.getElementById('evaluation');
+
+  let room = null;
+  let roomName = null;
+  let evaluationRequestId = 0;
+  const segmentEls = {};
+
+  // Load personas + providers in parallel
+  (async () => {
+    try {
+      const [personas, providers] = await Promise.all([
+        fetch('/personas').then(r => r.json()),
+        fetch('/providers').then(r => r.json()),
+      ]);
+      picker.innerHTML = personas.map(p =>
+        `<option value="${p.id}">${p.name} — ${p.role}</option>`
+      ).join('');
+      providerPicker.innerHTML = providers.map(p =>
+        `<option value="${p.id}">${p.name} (${p.model})</option>`
+      ).join('');
+      updatePill();
+    } catch {
+      picker.innerHTML = '<option disabled>Failed to load</option>';
+      providerPicker.innerHTML = '<option disabled>Failed to load</option>';
+    }
+  })();
+
+  function updatePill() {
+    const opt = picker.options[picker.selectedIndex];
+    agentPill.textContent = opt ? opt.text.split(' — ')[0] : 'Agent';
+  }
+  picker.addEventListener('change', updatePill);
+
+  function setStatus(msg, cls = '') {
+    statusEl.textContent = msg;
+    statusEl.className = cls;
+  }
+
+  function setActive(active) {
+    micCircle.style.display    = active ? 'none'  : 'flex';
+    orbContainer.style.display = active ? 'block' : 'none';
+    picker.disabled = active;
+    providerPicker.disabled = active;
+  }
+
+  function addOrUpdateSegment(id, text, isFinal, role) {
+    if (!text.trim()) return;
+    if (segmentEls[id]) {
+      segmentEls[id].querySelector('.turn-text').textContent = text;
+      if (isFinal) {
+        segmentEls[id].querySelector('.turn-text').classList.remove('interim');
+        delete segmentEls[id];
+      }
+      return;
+    }
+    const turn = document.createElement('div');
+    turn.className = `turn ${role}`;
+    turn.innerHTML = `
+      <span class="turn-label">${role === 'user' ? 'You' : agentPill.textContent}</span>
+      <span class="turn-text${isFinal ? '' : ' interim'}">${text}</span>
+    `;
+    transcriptEl.appendChild(turn);
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    if (!isFinal) segmentEls[id] = turn;
+  }
+
+  function clearTranscript() {
+    transcriptEl.innerHTML = '';
+    Object.keys(segmentEls).forEach(k => delete segmentEls[k]);
+  }
+
+  function makeElement(tag, className, text) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text) el.textContent = text;
+    return el;
+  }
+
+  function evaluationSection(title) {
+    const section = makeElement('div', 'evaluation-section');
+    section.appendChild(makeElement('h3', '', title));
+    evaluationEl.appendChild(section);
+    return section;
+  }
+
+  function appendList(title, items) {
+    if (!items || !items.length) return;
+    const section = evaluationSection(title);
+    const list = document.createElement('ul');
+    items.forEach(item => list.appendChild(makeElement('li', '', item)));
+    section.appendChild(list);
+  }
+
+  function clearEvaluation() {
+    evaluationRequestId += 1;
+    evaluationEl.replaceChildren();
+    evaluationEl.hidden = true;
+  }
+
+  function showEvaluationMessage(message, isError = false) {
+    evaluationEl.replaceChildren();
+    evaluationEl.hidden = false;
+    evaluationEl.appendChild(makeElement('div', isError ? 'evaluation-error' : 'evaluation-meta', message));
+  }
+
+  function formatScoreLabel(key) {
+    return key.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function renderEvaluation(report) {
+    evaluationEl.replaceChildren();
+    evaluationEl.hidden = false;
+    evaluationEl.appendChild(makeElement('div', 'evaluation-title', 'Sales Performance Report'));
+
+    const score = makeElement('div', 'evaluation-score', String(report.overall_score));
+    score.appendChild(makeElement('span', '', ' / 100'));
+    evaluationEl.appendChild(score);
+    evaluationEl.appendChild(makeElement(
+      'div',
+      'evaluation-meta',
+      `${report.customer_start_state} to ${report.customer_end_state} | ${report.conversion_outcome.replaceAll('_', ' ')}`
+    ));
+
+    const scoreSection = evaluationSection('Scorecard');
+    const scoreGrid = makeElement('div', 'score-grid');
+    Object.entries(report.scores).forEach(([key, value]) => {
+      const row = document.createElement('div');
+      row.appendChild(makeElement('span', '', formatScoreLabel(key)));
+      row.appendChild(makeElement('strong', '', `${value}/10`));
+      scoreGrid.appendChild(row);
+    });
+    scoreSection.appendChild(scoreGrid);
+
+    const movement = evaluationSection('Customer Movement');
+    movement.appendChild(makeElement('p', '', report.customer_movement_explanation));
+    appendList('Top Strengths', report.top_strengths);
+    appendList('Critical Mistakes', report.critical_mistakes);
+    appendList('Missed Opportunities', report.missed_opportunities);
+    appendList('Objections Handled Well', report.objections_handled_well);
+    appendList('Objections Handled Poorly', report.objections_handled_poorly);
+
+    const best = evaluationSection('Best Moment');
+    best.appendChild(makeElement('p', 'evaluation-quote', report.best_moment.evidence));
+    best.appendChild(makeElement('p', '', report.best_moment.explanation));
+
+    const worst = evaluationSection('Worst Moment');
+    worst.appendChild(makeElement('p', 'evaluation-quote', report.worst_moment.evidence));
+    worst.appendChild(makeElement('p', '', report.worst_moment.explanation));
+
+    const better = evaluationSection('Better Response');
+    better.appendChild(makeElement('p', '', report.better_response));
+    appendList('Coaching Plan', report.coaching_plan);
+
+    const verdict = evaluationSection('Manager Verdict');
+    verdict.appendChild(makeElement('p', '', report.final_verdict));
+  }
+
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  async function requestEvaluation(completedRoom) {
+    const requestId = ++evaluationRequestId;
+    showEvaluationMessage('Analyzing the completed call...');
+
+    let startResponse;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      startResponse = await fetch(`/evaluations/${encodeURIComponent(completedRoom)}`, { method: 'POST' });
+      if (startResponse.status !== 404) break;
+      await wait(500);
+    }
+    if (requestId !== evaluationRequestId) return;
+    if (!startResponse || !startResponse.ok) {
+      showEvaluationMessage('The transcript was not ready for analysis. Please try another call.', true);
+      return;
+    }
+
+    let result = await startResponse.json();
+    if (result.status === 'completed') {
+      renderEvaluation(result.evaluation);
+      return;
+    }
+
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      await wait(1000);
+      if (requestId !== evaluationRequestId) return;
+      const statusResponse = await fetch(`/evaluations/${encodeURIComponent(completedRoom)}`);
+      if (!statusResponse.ok) continue;
+      result = await statusResponse.json();
+      if (result.status === 'completed') {
+        renderEvaluation(result.evaluation);
+        return;
+      }
+      if (result.status === 'error') {
+        showEvaluationMessage(result.detail || result.error || 'The call could not be analyzed.', true);
+        return;
+      }
+    }
+    showEvaluationMessage('Analysis is still running. Keep this page open and try again shortly.', true);
+  }
+
+  async function startCall() {
+    const personaId = picker.value;
+    if (!personaId) return;
+    clearEvaluation();
+    setStatus('Connecting…');
+
+    try {
+      const providerId = providerPicker.value || 'groq';
+      const res = await fetch(`/token?persona_id=${personaId}&provider_id=${providerId}`);
+      if (!res.ok) throw new Error(await res.text());
+      const { token, url, room: joinedRoom } = await res.json();
+      roomName = joinedRoom;
+
+      room = new Room();
+
+      room.on(RoomEvent.Connected, () => {
+        setActive(true);
+        setStatus('Listening…', 'active');
+      });
+
+      room.on(RoomEvent.Disconnected, () => {
+        const completedRoom = roomName;
+        setActive(false);
+        setStatus('Click orb to start');
+        room = null;
+        roomName = null;
+        if (completedRoom) requestEvaluation(completedRoom);
+      });
+
+      room.on(RoomEvent.TrackSubscribed, (track) => {
+        if (track.kind === Track.Kind.Audio) document.body.appendChild(track.attach());
+      });
+      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        track.detach().forEach(el => el.remove());
+      });
+
+      room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
+        const isAgent = participant && participant.identity !== room.localParticipant.identity;
+        for (const seg of segments)
+          addOrUpdateSegment(seg.id, seg.text, seg.final, isAgent ? 'agent' : 'user');
+      });
+
+      clearTranscript();
+      await room.connect(url, token);
+      await room.localParticipant.setMicrophoneEnabled(true);
+
+    } catch (err) {
+      setStatus('Error: ' + err.message, 'error');
+      setActive(false);
+    }
+  }
+
+  async function endCall() {
+    if (room) await room.disconnect();
+  }
+
+  orbArea.addEventListener('click', () => {
+    if (room) endCall(); else startCall();
+  });
+</script>
+</body>
+</html>
